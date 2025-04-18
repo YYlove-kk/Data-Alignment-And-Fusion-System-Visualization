@@ -2,7 +2,7 @@
   <div class="main-content">
     <h2>主要知识图谱展示</h2>
     <div class="graph-visual">
-      <p>这里将渲染庞大的医养康跨模态知识图谱</p>
+      <svg ref="graphContainer"></svg>
 
       <div class="legend-box">
         <h4>关系与模态图例</h4>
@@ -54,7 +54,182 @@
 </template>
 
 <script setup>
-// 組件邏輯
+import { ref, onMounted } from 'vue';
+import * as d3 from 'd3';
+
+const graphContainer = ref(null);
+const emit = defineEmits(['nodeClick']);
+
+const initGraph = () => {
+  const width = graphContainer.value.clientWidth;
+  const height = graphContainer.value.clientHeight;
+  
+  // 创建 SVG
+  const svg = d3.select(graphContainer.value)
+    .attr('width', width)
+    .attr('height', height)
+    .call(d3.zoom()
+      .scaleExtent([0.1, 8])
+      .on('zoom', (event) => {
+        const container = d3.select('.graph-container');
+        if (container.empty()) {
+          svg.append('g')
+            .attr('class', 'graph-container')
+            .attr('transform', event.transform);
+        } else {
+          container.attr('transform', event.transform);
+        }
+      })
+    );
+
+  // 創建容器組
+  const container = svg.append('g')
+    .attr('class', 'graph-container');
+
+  // 创建力导向图
+  const simulation = d3.forceSimulation()
+    .force('link', d3.forceLink().id(d => d.id))
+    .force('charge', d3.forceManyBody())
+    .force('center', d3.forceCenter(width / 2, height / 2));
+
+  // 示例数据
+  const graphData = {
+    nodes: [
+      { id: '患者A', group: 0, size: 20, detail: '基本信息', shape: 'diamond' },
+      { id: '糖尿病', group: 1, size: 15, detail: '疾病信息', shape: 'square' },
+      { id: 'CT影像', group: 2, size: 15, detail: '影像数据', shape: 'triangle' },
+      { id: '医院A', group: 3, size: 12, detail: '医疗机构', shape: 'trapezoid' },
+      { id: '年龄', group: 4, size: 12, detail: '属性信息', shape: 'circle' }
+    ],
+    links: [
+      { source: '患者A', target: '糖尿病', type: 'red' },
+      { source: '糖尿病', target: 'CT影像', type: 'orange' },
+      { source: '患者A', target: '医院A', type: 'gray' },
+      { source: '患者A', target: '年龄', type: 'blue' }
+    ]
+  };
+
+  // 创建连线
+  const link = container.append('g')
+    .attr('class', 'links')
+    .selectAll('line')
+    .data(graphData.links)
+    .enter()
+    .append('line')
+    .attr('stroke', d => d.type)
+    .attr('stroke-opacity', 0.5)
+    .attr('stroke-width', 1);
+
+  // 创建节点组
+  const node = container.append('g')
+    .attr('class', 'nodes')
+    .selectAll('g')
+    .data(graphData.nodes)
+    .enter()
+    .append('g')
+    .call(d3.drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended))
+    .on('click', (event, d) => {
+      // 發送節點數據到父組件
+      emit('nodeClick', {
+        id: d.id,
+        detail: d.detail,
+        type: d.shape,
+        connections: graphData.links
+          .filter(link => link.source.id === d.id || link.target.id === d.id)
+          .map(link => ({
+            target: link.source.id === d.id ? link.target.id : link.source.id,
+            type: link.type
+          }))
+      });
+    });
+
+  // 根据节点类型创建不同形状
+  node.each(function(d) {
+    const g = d3.select(this);
+    switch(d.shape) {
+      case 'diamond':
+        g.append('rect')
+          .attr('width', d.size)
+          .attr('height', d.size)
+          .attr('transform', 'rotate(45)')
+          .attr('fill', '#fff')
+          .attr('stroke', '#000');
+        break;
+      case 'square':
+        g.append('rect')
+          .attr('width', d.size)
+          .attr('height', d.size)
+          .attr('fill', '#fff')
+          .attr('stroke', '#000');
+        break;
+      case 'triangle':
+        g.append('path')
+          .attr('d', `M0,${d.size} L${d.size},${d.size} L${d.size/2},0 Z`)
+          .attr('fill', '#fff')
+          .attr('stroke', '#000');
+        break;
+      case 'trapezoid':
+        g.append('path')
+          .attr('d', `M0,${d.size} L${d.size/4},0 L${3*d.size/4},0 L${d.size},${d.size} Z`)
+          .attr('fill', '#fff')
+          .attr('stroke', '#000');
+        break;
+      case 'circle':
+        g.append('circle')
+          .attr('r', d.size/2)
+          .attr('fill', '#fff')
+          .attr('stroke', '#000');
+        break;
+    }
+  });
+
+  // 创建文本
+  const text = node.append('text')
+    .attr('font-size', d => d.size / 2 + 3)
+    .attr('fill', '#000')
+    .attr('name', d => d.id)
+    .text(d => d.id)
+    .attr('text-anchor', 'middle')
+    .attr('dy', d => d.size + 5);
+
+  // 更新位置
+  simulation.nodes(graphData.nodes).on('tick', ticked);
+  simulation.force('link').links(graphData.links);
+
+  function ticked() {
+    link
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  }
+
+  function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.01).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+  }
+
+  function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0.001);
+    d.fx = null;
+    d.fy = null;
+  }
+};
+
+onMounted(() => {
+  initGraph();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -82,6 +257,12 @@
   color: #999;
   border-radius: 4px;
   position: relative;
+  overflow: hidden;
+
+  svg {
+    width: 100%;
+    height: 100%;
+  }
 }
 
 .legend-box {
@@ -96,6 +277,7 @@
   line-height: 1.4;
   color: #333;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  z-index: 10;
 
   h4 {
     margin-bottom: 0.3rem;

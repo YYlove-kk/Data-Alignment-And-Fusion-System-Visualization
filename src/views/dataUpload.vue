@@ -1,101 +1,142 @@
 <template>
   <div class="data-upload">
-    <!-- 主体 -->
+    <!-- 主體 -->
     <div class="container">
-      <!-- 顶部介绍区 -->
+      <!-- 頂部介紹區 -->
       <div class="upload-header">
         <h2>数据上传</h2>
-        <p>支持上传文件类型：CSV、Excel、JSON、医养康影像等。请确保字段中包含患者标识、机构信息等必需项，以便后续数据对齐与融合。文件大小限制等可在系统设置中查看。</p>
+        <p>
+          支持上传文件类型：CSV、Excel、JSON、医养康影像等。请确保字段中包含患者标识、机构信息等必需项，以便后续数据对齐与融合。文件大小限制等可在系统设置中查看。
+        </p>
       </div>
 
-      <!-- 左右分栏: 上传操作 / 已上传列表 -->
+      <!-- 左右分欄: 上傳操作 / 已上傳列表 -->
       <div class="upload-container">
-        <!-- 左侧：上传操作 -->
+        <!-- 左側：上傳操作 -->
         <div class="left-panel">
           <h3>上传文件</h3>
-          <div 
-            class="drag-area"
-            @dragover.prevent
-            @drop.prevent="handleDrop"
-            @click="triggerFileInput"
-          >
-            <p>点击或拖拽文件到此处</p>
-            <input 
-              type="file" 
-              ref="fileInput"
-              style="display: none"
-              @change="handleFileChange"
-            />
-          </div>
 
           <div class="info-field">
             <label for="dataSourceName">数据源名称</label>
-            <input 
-              type="text" 
-              id="dataSourceName" 
+            <el-input
               v-model="formData.dataSourceName"
-              placeholder="例: 广医医院2024-Q1影像数据" 
+              placeholder="例: 广西医院2024-Q1影像数据"
+              size="large"
             />
           </div>
           <div class="info-field">
             <label for="modalType">模态类型</label>
-            <select id="modalType" v-model="formData.modalType">
-              <option value="text">文本</option>
-              <option value="image">图像</option>
-              <option value="timeSeries">时序</option>
-              <option value="other">其他</option>
-            </select>
+            <el-select
+              v-model="formData.modalType"
+              placeholder="请选择模态类型"
+              size="large"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in modalTypeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </div>
           <div class="info-field">
             <label for="orgName">机构名称/备注</label>
-            <input 
-              type="text" 
-              id="orgName" 
+            <el-input
               v-model="formData.orgName"
-              placeholder="例: 广东省人民医院" 
+              placeholder="例: 广东省人民医院"
+              size="large"
             />
           </div>
 
+          <el-upload
+            class="upload-area"
+            drag
+            :action="uploadUrl"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            :before-upload="beforeUpload"
+            v-model:file-list="fileList"
+            :on-remove="handleRemove"
+            :limit="1"
+          >
+            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <div class="el-upload__text">
+              拖拽文件到这里或 <em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持的文件类型：CSV、Excel、JSON、医养康影像等，单个文件大小不超过
+                500MB
+              </div>
+            </template>
+          </el-upload>
+
           <div class="upload-actions">
-            <button @click="handleUpload" :disabled="!canUpload">开始上传</button>
-            <button @click="handleCancel" style="background-color:#6c757d;">取消</button>
+            <el-button
+              type="primary"
+              @click="submitUpload"
+              :disabled="!canUpload"
+            >
+              开始上传
+            </el-button>
+            <el-button @click="handleCancel">取消</el-button>
           </div>
 
-          <div class="progress-area">
-            <p>当前上传进度: {{ uploadProgress }}%</p>
+          <div class="progress-area" v-if="uploadProgress > 0">
+            <el-progress :percentage="uploadProgress" />
           </div>
         </div>
 
-        <!-- 右侧：已上传数据列表 -->
+        <!-- 右側：已上傳數據列表 -->
         <div class="right-panel">
           <h3>已上传数据列表</h3>
-          <table class="upload-table">
-            <thead>
-              <tr>
-                <th>数据源名称</th>
-                <th>模态类型</th>
-                <th>上传时间</th>
-                <th>状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(item, index) in uploadedFiles" :key="index">
-                <td>{{ item.name }}</td>
-                <td>{{ item.type }}</td>
-                <td>{{ item.uploadTime }}</td>
-                <td>{{ item.status }}</td>
-                <td>
-                  <div class="btn-group">
-                    <button class="btn-view" @click="handleView(item)">查看</button>
-                    <button class="btn-delete" @click="handleDelete(item)">删除</button>
-                    <button class="btn-reupload" @click="handleReupload(item)">重新上传</button>
-                    <button class="btn-align" @click="handleAlign(item)">数据对齐</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+
+          <el-table
+            :data="uploadedFiles"
+            style="width: 100%"
+            max-height="410"
+            border
+          >
+            <el-table-column prop="name" label="数据源名称" width="180" />
+            <el-table-column prop="type" label="模态类型" width="120" />
+            <el-table-column prop="uploadTime" label="上传时间" width="180" />
+            <el-table-column prop="status" label="状态" width="120" />
+            <el-table-column label="操作" width="400">
+              <template #default="scope">
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="handleView(scope.row)"
+                >
+                  查看
+                </el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="handleDelete(scope.row)"
+                >
+                  刪除
+                </el-button>
+                <el-button
+                  type="warning"
+                  size="small"
+                  @click="handleReupload(scope.row)"
+                >
+                  重新上传
+                </el-button>
+                <el-button
+                  type="success"
+                  size="small"
+                  @click="handleAlign(scope.row)"
+                >
+                  数据对齐
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
       </div>
     </div>
@@ -103,119 +144,168 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed } from "vue";
+import { ElMessage } from "element-plus";
+import { UploadFilled } from "@element-plus/icons-vue";
 
-// 表单数据
+// 上傳 URL
+const uploadUrl =
+  "https://run.mocky.io/v3/9d059bf9-4660-45f2-925d-ce80ad6c4d15";
+
+// 表單數據
 const formData = ref({
-  dataSourceName: '',
-  modalType: 'text',
-  orgName: '',
-  file: null
+  dataSourceName: "",
+  modalType: "text",
+  orgName: "",
 });
 
-// 上传进度
+// 文件列表
+const fileList = ref([]);
+
+// 上傳進度
 const uploadProgress = ref(0);
 
-// 已上传文件列表
+// 已上傳文件列表
 const uploadedFiles = ref([
   {
-    name: '广医医院2023-Q4文本',
-    type: '文本',
-    uploadTime: '2025-08-10 15:30',
-    status: '成功'
-  }
+    name: "廣醫醫院2023-Q4文本",
+    type: "文本",
+    uploadTime: "2025-08-10 15:30",
+    status: "成功",
+  },
 ]);
 
-// 文件输入引用
-const fileInput = ref(null);
+// 模态类型选项
+const modalTypeOptions = [
+  { value: "text", label: "文本" },
+  { value: "image", label: "图像" },
+  { value: "timeSeries", label: "时序" },
+  { value: "other", label: "其他" },
+];
 
-// 计算属性：是否可以上传
+// 計算屬性：是否可以上傳
 const canUpload = computed(() => {
-  return formData.value.dataSourceName && 
-         formData.value.orgName && 
-         formData.value.file;
+  console.log("11", fileList.value);
+  return (
+    formData.value.dataSourceName &&
+    formData.value.orgName &&
+    fileList.value.length > 0
+  );
 });
 
-// 触发文件选择
-const triggerFileInput = () => {
-  fileInput.value.click();
-};
-
-// 处理文件选择
-const handleFileChange = (event) => {
-  const file = event.target.files[0];
+// 處理文件選擇
+const handleFileChange = (file, fileList) => {
   if (file) {
-    formData.value.file = file;
+    // 自動填充數據源名稱（使用第一個文件名）
+    if (!formData.value.dataSourceName && fileList.length === 1) {
+      formData.value.dataSourceName = file.name.split(".")[0];
+    }
   }
 };
 
-// 处理文件拖放
-const handleDrop = (event) => {
-  const file = event.dataTransfer.files[0];
-  if (file) {
-    formData.value.file = file;
+// 上傳前的驗證
+const beforeUpload = (file) => {
+  const isLt500M = file.size / 1024 / 1024 < 500;
+  if (!isLt500M) {
+    ElMessage.error("文件大小不能超過 500MB!");
+    return false;
   }
+  return true;
 };
 
-// 处理上传
-const handleUpload = async () => {
-  if (!canUpload.value) return;
-  
-  // 模拟上传进度
-  for (let i = 0; i <= 100; i += 10) {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    uploadProgress.value = i;
-  }
-  
-  // 添加上传记录
+// 處理上傳成功
+const handleUploadSuccess = (response, file) => {
+  uploadProgress.value = 100;
+  // 添加上傳記錄
   uploadedFiles.value.unshift({
     name: formData.value.dataSourceName,
     type: formData.value.modalType,
     uploadTime: new Date().toLocaleString(),
-    status: '成功'
+    status: "成功",
   });
-  
-  // 重置表单
+
+  ElMessage.success("文件上传成功");
   resetForm();
 };
 
-// 处理取消
+// 處理上傳失敗
+const handleUploadError = (error) => {
+  console.error("上传失败:", error);
+  ElMessage.error("文件上傳失敗，請重試");
+};
+
+// 提交上傳
+const submitUpload = () => {
+  if (!canUpload.value) {
+    ElMessage.warning("請填寫所有必填項並選擇文件");
+    return;
+  }
+  // 這裡可以添加實際的上傳邏輯
+  uploadProgress.value = 0;
+  console.log("11", fileList.value);
+  // 模擬上傳進度
+  const interval = setInterval(() => {
+    if (uploadProgress.value < 100) {
+      uploadProgress.value += 10;
+    } else {
+      clearInterval(interval);
+    }
+  }, 200);
+
+  const file = fileList.value[0];
+  const params = {
+    dataSourceName: formData.value.dataSourceName,
+    modalType: formData.value.modalType,
+    orgName: formData.value.orgName,
+    file: file,
+  };
+  console.log("11", params);
+};
+
+// 處理取消
 const handleCancel = () => {
   resetForm();
 };
 
-// 重置表单
+// 重置表單
 const resetForm = () => {
   formData.value = {
-    dataSourceName: '',
-    modalType: 'text',
-    orgName: '',
-    file: null
+    dataSourceName: "",
+    modalType: "text",
+    orgName: "",
   };
+  fileList.value = [];
   uploadProgress.value = 0;
 };
 
-// 处理查看
+// 處理查看
 const handleView = (item) => {
-  console.log('查看文件:', item);
+  console.log("查看文件:", item);
 };
 
-// 处理删除
+// 處理刪除
 const handleDelete = (item) => {
   const index = uploadedFiles.value.indexOf(item);
   if (index > -1) {
     uploadedFiles.value.splice(index, 1);
+    ElMessage.success("刪除成功");
   }
 };
 
-// 处理重新上传
+// 處理重新上傳
 const handleReupload = (item) => {
-  console.log('重新上传:', item);
+  console.log("重新上傳:", item);
 };
 
-// 处理数据对齐
+// 處理數據對齊
 const handleAlign = (item) => {
-  console.log('数据对齐:', item);
+  console.log("數據對齊:", item);
+};
+
+// 处理文件移除
+const handleRemove = (file, fileList) => {
+  console.log("移除文件:", file);
+  console.log("剩余文件列表:", fileList);
 };
 </script>
 
@@ -228,7 +318,7 @@ const handleAlign = (item) => {
   .upload-header {
     background-color: #fff;
     border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     padding: 1rem;
     margin-bottom: 1rem;
 
@@ -251,31 +341,18 @@ const handleAlign = (item) => {
     min-height: 400px;
   }
 
-  .left-panel, .right-panel {
+  .left-panel,
+  .right-panel {
     flex: 1;
     background-color: #fff;
     border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     padding: 1rem;
 
     h3 {
       font-size: 1rem;
       margin-bottom: 0.5rem;
       color: #007bff;
-    }
-  }
-
-  .drag-area {
-    margin: 1rem 0;
-    padding: 2rem;
-    border: 2px dashed #aaa;
-    border-radius: 6px;
-    text-align: center;
-    color: #777;
-    cursor: pointer;
-
-    &:hover {
-      background-color: #f0f3f5;
     }
   }
 
@@ -289,11 +366,25 @@ const handleAlign = (item) => {
       color: #444;
     }
 
-    input, select {
+    input,
+    select {
       width: 100%;
       padding: 0.4rem;
       border: 1px solid #ccc;
       border-radius: 4px;
+    }
+  }
+
+  .upload-area {
+    margin: 1rem 0;
+    width: 100%;
+
+    :deep(.el-upload) {
+      width: 100%;
+    }
+
+    :deep(.el-upload-dragger) {
+      width: 100%;
     }
   }
 
@@ -302,84 +393,13 @@ const handleAlign = (item) => {
     gap: 0.6rem;
     margin-top: 1rem;
 
-    button {
+    .el-button {
       flex: 1;
-      padding: 0.6rem;
-      background-color: #28a745;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.95rem;
-
-      &:hover {
-        opacity: 0.85;
-      }
-
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
     }
   }
 
   .progress-area {
     margin-top: 1rem;
-    font-size: 0.9rem;
-    color: #666;
-  }
-
-  .upload-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-
-    th, td {
-      border: 1px solid #ddd;
-      padding: 0.6rem;
-      text-align: left;
-    }
-
-    th {
-      background-color: #f7f7f7;
-    }
-
-    .btn-group {
-      display: flex;
-      gap: 0.3rem;
-
-      button {
-        padding: 0.3rem 0.6rem;
-        border-radius: 4px;
-        border: none;
-        cursor: pointer;
-        font-size: 0.85rem;
-
-        &:hover {
-          opacity: 0.85;
-        }
-      }
-
-      .btn-view {
-        background-color: #17a2b8;
-        color: #fff;
-      }
-
-      .btn-delete {
-        background-color: #dc3545;
-        color: #fff;
-      }
-
-      .btn-reupload {
-        background-color: #ffc107;
-        color: #fff;
-      }
-
-      .btn-align {
-        background-color: #007bff;
-        color: #fff;
-      }
-    }
   }
 }
 </style>

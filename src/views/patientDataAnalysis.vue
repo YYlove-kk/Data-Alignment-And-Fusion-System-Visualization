@@ -7,47 +7,36 @@
         <h2>数据分析查询</h2>
 
         <!-- 选择对象: 患者 或 疾病 -->
-        <div class="radio-group">
-          <label>
-            <input 
-              type="radio" 
-              name="analysisTarget" 
-              value="patient" 
-              v-model="queryConfig.target"
-              checked 
-            />
-            单个患者
-          </label>
-          <label>
-            <input 
-              type="radio" 
-              name="analysisTarget" 
-              value="disease" 
-              v-model="queryConfig.target"
-            />
-            某种疾病
-          </label>
-        </div>
+        <el-radio-group class="radio-group" v-model="queryConfig.target">
+          <el-radio value="patient">单个患者</el-radio>
+          <el-radio value="disease">某种疾病</el-radio>
+        </el-radio-group>
 
         <div class="form-row">
           <div class="form-col">
             <label for="patientOrDisease">
-              {{ queryConfig.target === 'patient' ? '患者ID' : '疾病名称' }}
+              {{ queryConfig.target === "patient" ? "患者ID" : "疾病名称" }}
             </label>
-            <input 
-              type="text" 
-              id="patientOrDisease" 
+            <el-input
               v-model="queryConfig.keyword"
-              :placeholder="queryConfig.target === 'patient' ? '如 Patient_X101' : '如 糖尿病'"
+              :placeholder="
+                queryConfig.target === 'patient'
+                  ? '如 Patient_X101'
+                  : '如 糖尿病'
+              "
+              size="large"
             />
           </div>
           <div class="form-col">
             <label for="analysisTimeRange">时间范围</label>
-            <input 
-              type="text" 
-              id="analysisTimeRange" 
+            <el-date-picker
               v-model="queryConfig.timeRange"
-              placeholder="2024-01 至 2024-12"
+              type="daterange"
+              range-separator="To"
+              start-placeholder="Start date"
+              end-placeholder="End date"
+              size="large"
+              style="width: 100%"
             />
           </div>
         </div>
@@ -55,24 +44,39 @@
         <div class="form-row">
           <div class="form-col">
             <label>数据来源</label>
-            <select v-model="queryConfig.dataSource">
-              <option value="medical">就诊记录</option>
-              <option value="elderly">养老/居家数据</option>
-              <option value="rehabilitation">康复机构数据</option>
-              <option value="all">全部</option>
-            </select>
+            <el-select
+              v-model="queryConfig.dataSource"
+              placeholder="请选择数据来源"
+              size="large"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in dataSourceOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </div>
           <div class="form-col">
             <label>分析模式</label>
-            <select v-model="queryConfig.analysisMode">
-              <option value="statistics">统计汇总</option>
-              <option value="trend">趋势预测</option>
-              <option value="cluster">聚类/分群</option>
-            </select>
+            <el-select
+              v-model="queryConfig.analysisMode"
+              placeholder="请选择分析模式"
+              size="large"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in analysisModeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </div>
         </div>
 
-        <button 
+        <button
           class="analyze-button"
           @click="startAnalysis"
           :disabled="!canStartAnalysis"
@@ -89,26 +93,24 @@
         <div class="metrics">
           <div class="metric-card">
             <h4>记录总数</h4>
-            <p>{{ metrics.totalRecords || '--' }}</p>
+            <p>{{ metrics.totalRecords || "--" }}</p>
           </div>
           <div class="metric-card">
             <h4>主要诊断数</h4>
-            <p>{{ metrics.mainDiagnosisCount || '--' }}</p>
+            <p>{{ metrics.mainDiagnosisCount || "--" }}</p>
           </div>
           <div class="metric-card">
             <h4>平均就诊频次</h4>
-            <p>{{ metrics.avgVisitFrequency || '--' }}</p>
+            <p>{{ metrics.avgVisitFrequency || "--" }}</p>
           </div>
         </div>
 
         <!-- 图表区域 -->
-        <div class="chart-area">
+        <div class="chart-area" v-loading="loading">
           <div v-if="!isAnalyzing" class="placeholder">
             可视化图表(如折线、柱状、饼图)等
           </div>
-          <div v-else class="loading">
-            正在生成图表...
-          </div>
+          <div ref="graphRef" class="graph-container" id="chart"></div>
         </div>
 
         <!-- 结果表格 -->
@@ -136,80 +138,195 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed } from "vue";
+import * as echarts from "echarts";
 
 // 查询配置
 const queryConfig = ref({
-  target: 'patient',
-  keyword: '',
-  timeRange: '',
-  dataSource: 'all',
-  analysisMode: 'statistics'
+  target: "patient",
+  keyword: "",
+  timeRange: "",
+  dataSource: "all",
+  analysisMode: "statistics",
 });
+
+// 数据来源选项
+const dataSourceOptions = [
+  { value: "medical", label: "就诊记录" },
+  { value: "elderly", label: "养老/居家数据" },
+  { value: "rehabilitation", label: "康复机构数据" },
+  { value: "all", label: "全部" },
+];
+
+// 分析模式选项
+const analysisModeOptions = [
+  { value: "statistics", label: "统计汇总" },
+  { value: "trend", label: "趋势预测" },
+  { value: "cluster", label: "聚类/分群" },
+];
 
 // 分析状态
 const isAnalyzing = ref(false);
+const loading = ref(false);
 
 // 指标数据
 const metrics = ref({
   totalRecords: null,
   mainDiagnosisCount: null,
-  avgVisitFrequency: null
+  avgVisitFrequency: null,
 });
 
 // 分析结果
 const analysisResults = ref([
   {
-    id: 'R_2024_01',
-    date: '2024-03-10',
-    relatedInfo: '血压检测/康复数据',
-    keyMetrics: '高血压 160/95'
-  }
+    id: "R_2024_01",
+    date: "2024-03-10",
+    relatedInfo: "血压检测/康复数据",
+    keyMetrics: "高血压 160/95",
+  },
 ]);
 
 // 计算属性：是否可以开始分析
 const canStartAnalysis = computed(() => {
-  return queryConfig.value.keyword !== '' && 
-         queryConfig.value.timeRange !== '';
+  return queryConfig.value.keyword !== "" && queryConfig.value.timeRange !== "";
 });
 
 // 开始分析
 const startAnalysis = async () => {
   if (!canStartAnalysis.value) return;
-  
+
   isAnalyzing.value = true;
-  
+
   try {
     // 模拟分析过程
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    loading.value = true;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     // 更新指标数据
     metrics.value = {
       totalRecords: 156,
       mainDiagnosisCount: 8,
-      avgVisitFrequency: '2.3次/月'
+      avgVisitFrequency: "2.3次/月",
     };
-    
+
     // 更新分析结果
     analysisResults.value = [
       {
-        id: 'R_2024_01',
-        date: '2024-03-10',
-        relatedInfo: '血压检测/康复数据',
-        keyMetrics: '高血压 160/95'
+        id: "R_2024_01",
+        date: "2024-03-10",
+        relatedInfo: "血压检测/康复数据",
+        keyMetrics: "高血压 160/95",
       },
       {
-        id: 'R_2024_02',
-        date: '2024-03-15',
-        relatedInfo: '血糖检测/养老数据',
-        keyMetrics: '空腹血糖 6.8mmol/L'
-      }
+        id: "R_2024_02",
+        date: "2024-03-15",
+        relatedInfo: "血糖检测/养老数据",
+        keyMetrics: "空腹血糖 6.8mmol/L",
+      },
     ];
+
+    initGraph();
   } catch (error) {
-    console.error('分析过程出错:', error);
+    console.error("分析过程出错:", error);
   } finally {
-    isAnalyzing.value = false;
+    loading.value = false;
   }
+};
+
+const graphRef = ref();
+
+const initGraph = () => {
+  const myChart = echarts.init(graphRef.value);
+
+  // 模擬數據
+  const dates = ["2024-01", "2024-02", "2024-03", "2024-04", "2024-05"];
+  const data = {
+    bloodSugar: [6.2, 5.8, 6.5, 5.9, 6.1],
+    bloodPressure: [130, 128, 135, 132, 129],
+    weight: [65, 64, 63, 64, 63],
+  };
+
+  const option = {
+    tooltip: {
+      trigger: "axis",
+      axisPointer: {
+        type: "cross",
+        label: {
+          backgroundColor: "#6a7985",
+        },
+      },
+    },
+    legend: {
+      data: ["血糖", "血壓", "體重"],
+    },
+    grid: {
+      left: "3%",
+      right: "4%",
+      bottom: "3%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: dates,
+    },
+    yAxis: [
+      {
+        type: "value",
+        name: "血糖(mmol/L)",
+        position: "left",
+      },
+      {
+        type: "value",
+        name: "血壓(mmHg)",
+        position: "right",
+      },
+      {
+        type: "value",
+        name: "體重(kg)",
+        position: "right",
+        offset: 80,
+      },
+    ],
+    series: [
+      {
+        name: "血糖",
+        type: "line",
+        data: data.bloodSugar,
+        smooth: true,
+        itemStyle: {
+          color: "#ff6384",
+        },
+      },
+      {
+        name: "血壓",
+        type: "line",
+        yAxisIndex: 1,
+        data: data.bloodPressure,
+        smooth: true,
+        itemStyle: {
+          color: "#36a2eb",
+        },
+      },
+      {
+        name: "體重",
+        type: "line",
+        yAxisIndex: 2,
+        data: data.weight,
+        smooth: true,
+        itemStyle: {
+          color: "#4bc0c0",
+        },
+      },
+    ],
+  };
+
+  myChart.setOption(option);
+
+  // 監聽窗口大小變化，調整圖表大小
+  window.addEventListener("resize", () => {
+    myChart.resize();
+  });
 };
 </script>
 
@@ -222,7 +339,7 @@ const startAnalysis = async () => {
   .query-card {
     background-color: #fff;
     border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     padding: 1rem;
     margin-bottom: 1rem;
 
@@ -249,7 +366,8 @@ const startAnalysis = async () => {
         color: #444;
       }
 
-      input, select {
+      input,
+      select {
         padding: 0.4rem;
         border: 1px solid #ccc;
         border-radius: 4px;
@@ -289,7 +407,7 @@ const startAnalysis = async () => {
   .analysis-result {
     background-color: #fff;
     border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     padding: 1rem;
 
     h2 {
@@ -334,8 +452,13 @@ const startAnalysis = async () => {
       color: #999;
       border-radius: 4px;
 
-      .placeholder, .loading {
+      .placeholder {
         text-align: center;
+        position: absolute;
+      }
+      .graph-container {
+        width: 100%;
+        height: 100%;
       }
     }
 
@@ -344,7 +467,8 @@ const startAnalysis = async () => {
       border-collapse: collapse;
       margin-top: 1rem;
 
-      th, td {
+      th,
+      td {
         border: 1px solid #ddd;
         padding: 0.6rem;
         text-align: left;

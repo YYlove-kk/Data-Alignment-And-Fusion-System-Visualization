@@ -10,70 +10,82 @@
         <div class="panel-section">
           <h3>知识图谱构建</h3>
           <div class="form-group">
-            <label for="buildDataSource">选择对齐后的数据</label>
-            <select 
-              id="buildDataSource" 
+            <label>选择对齐后的数据</label>
+            <el-select 
               v-model="buildConfig.dataSource"
+              placeholder="选择可用的数据集"
+              size="large"
+              style="width: 100%"
             >
-              <option value="">选择可用的数据集</option>
-              <option value="alignment1">对齐结果 #1</option>
-              <option value="alignment2">对齐结果 #2</option>
-            </select>
+              <el-option value="" label="选择可用的数据集" />
+              <el-option value="alignment1" label="对齐结果 #1" />
+              <el-option value="alignment2" label="对齐结果 #2" />
+            </el-select>
           </div>
 
           <div class="form-group">
-            <label for="graphBuildMode">构建模式</label>
-            <select 
-              id="graphBuildMode" 
+            <label>构建模式</label>
+            <el-select 
               v-model="buildConfig.buildMode"
+              placeholder="选择构建模式"
+              size="large"
+              style="width: 100%"
             >
-              <option value="single">单模态</option>
-              <option value="multi">多模态</option>
-            </select>
+              <el-option value="single" label="单模态" />
+              <el-option value="multi" label="多模态" />
+            </el-select>
           </div>
 
-          <button 
-            class="action-btn"
+          <el-button 
+            type="primary"
             @click="startBuild"
             :disabled="!canStartBuild"
+            size="large"
+            style="width: 100%"
           >
             开始构建图谱
-          </button>
+          </el-button>
         </div>
 
         <!-- 图谱融合模块 -->
         <div class="panel-section">
           <h3>知识图谱融合</h3>
           <div class="form-group">
-            <label for="existingGraphSelect">融合到已有图谱</label>
-            <select 
-              id="existingGraphSelect" 
+            <label>融合到已有图谱</label>
+            <el-select 
               v-model="fusionConfig.targetGraph"
+              placeholder="选择目标图谱"
+              size="large"
+              style="width: 100%"
             >
-              <option value="">主知识图谱 #1</option>
-              <option value="graph2">主知识图谱 #2</option>
-            </select>
+              <el-option value="" label="主知识图谱 #1" />
+              <el-option value="graph2" label="主知识图谱 #2" />
+            </el-select>
           </div>
 
           <div class="form-group">
-            <label for="fusionStrategy">融合策略</label>
-            <select 
-              id="fusionStrategy" 
+            <label>融合策略</label>
+            <el-select 
               v-model="fusionConfig.strategy"
+              placeholder="选择融合策略"
+              size="large"
+              style="width: 100%"
             >
-              <option value="gnn">GNN多头注意力</option>
-              <option value="heuristic">启发式合并</option>
-              <option value="rules">规则驱动</option>
-            </select>
+              <el-option value="gnn" label="GNN多头注意力" />
+              <el-option value="heuristic" label="启发式合并" />
+              <el-option value="rules" label="规则驱动" />
+            </el-select>
           </div>
 
-          <button 
-            class="action-btn"
+          <el-button 
+            type="primary"
             @click="startFusion"
             :disabled="!canStartFusion"
+            size="large"
+            style="width: 100%"
           >
             开始融合
-          </button>
+          </el-button>
         </div>
       </div>
 
@@ -82,82 +94,39 @@
         <h2>知识图谱构建 & 融合结果</h2>
 
         <!-- Tab切换 -->
-        <div class="tab-header">
-          <button 
-            :class="{ active: activeTab === 'build' }"
-            @click="activeTab = 'build'"
-          >
-            构建结果
-          </button>
-          <button 
-            :class="{ active: activeTab === 'fusion' }"
-            @click="activeTab = 'fusion'"
-          >
-            融合结果
-          </button>
-        </div>
-
-        <!-- 构建结果面板 -->
-        <div 
-          class="tab-content" 
-          v-show="activeTab === 'build'"
-        >
-          <div class="graph-visual">
-            <div v-if="!isBuilding" class="placeholder">
-              这里显示图谱构建后的局部可视化（或力导向图）
+        <el-tabs v-model="activeTab">
+          <el-tab-pane label="构建结果" name="build">
+            <div class="graph-visual">
+              <div v-if="!isBuilding" class="placeholder">
+                这里显示图谱构建后的局部可视化（或力导向图）
+              </div>
+              <div v-else class="visualization">
+                <div class="loading">正在生成可视化...</div>
+              </div>
             </div>
-            <div v-else class="visualization">
-              <div class="loading">正在生成可视化...</div>
+            <el-table :data="buildResults" border>
+              <el-table-column prop="name" label="节点名称" />
+              <el-table-column prop="modality" label="模态" />
+              <el-table-column prop="attributeCount" label="属性数" />
+            </el-table>
+          </el-tab-pane>
+          
+          <el-tab-pane label="融合结果" name="fusion">
+            <div class="graph-visual">
+              <div v-if="!isFusing" class="placeholder">
+                这里展示融合后，与主知识图谱合并的可视化
+              </div>
+              <div v-else class="visualization">
+                <div class="loading">正在生成可视化...</div>
+              </div>
             </div>
-          </div>
-          <table class="result-table">
-            <thead>
-              <tr>
-                <th>节点名称</th>
-                <th>模态</th>
-                <th>属性数</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(node, index) in buildResults" :key="index">
-                <td>{{ node.name }}</td>
-                <td>{{ node.modality }}</td>
-                <td>{{ node.attributeCount }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 融合结果面板 -->
-        <div 
-          class="tab-content" 
-          v-show="activeTab === 'fusion'"
-        >
-          <div class="graph-visual">
-            <div v-if="!isFusing" class="placeholder">
-              这里展示融合后，与主知识图谱合并的可视化
-            </div>
-            <div v-else class="visualization">
-              <div class="loading">正在生成可视化...</div>
-            </div>
-          </div>
-          <table class="result-table">
-            <thead>
-              <tr>
-                <th>节点名称</th>
-                <th>所属图谱</th>
-                <th>合并方式</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(node, index) in fusionResults" :key="index">
-                <td>{{ node.name }}</td>
-                <td>{{ node.graph }}</td>
-                <td>{{ node.mergeMethod }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            <el-table :data="fusionResults" border>
+              <el-table-column prop="name" label="节点名称" />
+              <el-table-column prop="graph" label="所属图谱" />
+              <el-table-column prop="mergeMethod" label="合并方式" />
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
       </div>
     </div>
   </div>
@@ -319,34 +288,6 @@ const startFusion = async () => {
           font-weight: bold;
           color: #444;
         }
-
-        select, input {
-          width: 100%;
-          padding: 0.4rem;
-          margin-bottom: 0.8rem;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-        }
-      }
-
-      .action-btn {
-        width: 100%;
-        padding: 0.5rem;
-        background-color: #28a745;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 0.95rem;
-
-        &:hover {
-          background-color: #218838;
-        }
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
       }
     }
   }
@@ -364,27 +305,6 @@ const startFusion = async () => {
       color: #007bff;
     }
 
-    .tab-header {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
-
-      button {
-        padding: 0.4rem 0.8rem;
-        background-color: #e9ecef;
-        color: #333;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        cursor: pointer;
-
-        &.active {
-          background-color: #007bff;
-          color: #fff;
-          border-color: #007bff;
-        }
-      }
-    }
-
     .graph-visual {
       border: 1px dashed #ccc;
       height: 350px;
@@ -397,22 +317,6 @@ const startFusion = async () => {
 
       .placeholder, .loading {
         text-align: center;
-      }
-    }
-
-    .result-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1rem;
-
-      th, td {
-        border: 1px solid #ddd;
-        padding: 0.6rem;
-        text-align: left;
-      }
-
-      th {
-        background-color: #f7f7f7;
       }
     }
   }
