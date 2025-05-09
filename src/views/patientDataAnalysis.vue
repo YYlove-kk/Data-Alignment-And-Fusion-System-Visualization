@@ -7,7 +7,7 @@
         <h2>数据分析查询</h2>
 
         <!-- 选择对象: 患者 或 疾病 -->
-        <el-radio-group class="radio-group" v-model="queryConfig.target">
+        <el-radio-group class="radio-group" v-model="queryConfig.type">
           <el-radio value="patient">单个患者</el-radio>
           <el-radio value="disease">某种疾病</el-radio>
         </el-radio-group>
@@ -15,12 +15,12 @@
         <div class="form-row">
           <div class="form-col">
             <label for="patientOrDisease">
-              {{ queryConfig.target === "patient" ? "患者ID" : "疾病名称" }}
+              {{ queryConfig.type === "patient" ? "患者ID" : "疾病名称" }}
             </label>
             <el-input
-              v-model="queryConfig.keyword"
+              v-model="queryConfig.name"
               :placeholder="
-                queryConfig.target === 'patient'
+                queryConfig.type === 'patient'
                   ? '如 Patient_X101'
                   : '如 糖尿病'
               "
@@ -114,24 +114,17 @@
         </div>
 
         <!-- 结果表格 -->
-        <table class="analysis-table">
-          <thead>
-            <tr>
-              <th>记录ID/名称</th>
-              <th>日期/时间</th>
-              <th>关联信息</th>
-              <th>关键指标</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(record, index) in analysisResults" :key="index">
-              <td>{{ record.id }}</td>
-              <td>{{ record.date }}</td>
-              <td>{{ record.relatedInfo }}</td>
-              <td>{{ record.keyMetrics }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <el-table
+          :data="analysisResults"
+          style="width: 100%"
+          border
+        >
+          <el-table-column prop="id" label="记录ID/名称" />
+          <el-table-column prop="date" label="日期/时间" />
+          <el-table-column prop="relatedInfo" label="关联信息" />
+          <el-table-column prop="keyMetrics" label="关键指标" />
+        </el-table>
+       
       </div>
     </div>
   </div>
@@ -140,11 +133,12 @@
 <script setup>
 import { ref, computed } from "vue";
 import * as echarts from "echarts";
+import { submitPatientDataAnalysis } from "@/api/patientDataAnalysis";
 
 // 查询配置
 const queryConfig = ref({
-  target: "patient",
-  keyword: "",
+  type: "patient",
+  name: "",
   timeRange: "",
   dataSource: "all",
   analysisMode: "statistics",
@@ -178,13 +172,10 @@ const metrics = ref({
 
 // 分析结果
 const analysisResults = ref([
-  {
-    id: "R_2024_01",
-    date: "2024-03-10",
-    relatedInfo: "血压检测/康复数据",
-    keyMetrics: "高血压 160/95",
-  },
 ]);
+
+
+const mapData = ref({})
 
 // 计算属性：是否可以开始分析
 const canStartAnalysis = computed(() => {
@@ -200,6 +191,16 @@ const startAnalysis = async () => {
   try {
     // 模拟分析过程
     loading.value = true;
+    // const res = await submitPatientDataAnalysis(queryConfig.value)
+    // if(res.code === 200){
+    //   ElMessage.success("对齐成功");
+    //       // 更新指标
+    //   metrics.value = res.data.metrics;
+    //   analysisResults.value = res.data.analysisResults;
+    //   mapData.value = res.data.mapData;
+    // }else{
+    //   ElMessage.error("对齐失败");
+    // }
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // 更新指标数据
@@ -211,17 +212,35 @@ const startAnalysis = async () => {
 
     // 更新分析结果
     analysisResults.value = [
+    {
+        id: "R_2024_01",
+        date: "2024-05-6",
+        relatedInfo: "血糖检测/血压检测/康复数据",
+        keyMetrics: "空腹血糖 6.8mmol/L",
+      },
+      {
+        id: "R_2024_01",
+        date: "2024-04-3",
+        relatedInfo: "血糖检测/血压检测/康复数据",
+        keyMetrics: "空腹血糖 6.9mmol/L",
+      },
       {
         id: "R_2024_01",
         date: "2024-03-10",
-        relatedInfo: "血压检测/康复数据",
-        keyMetrics: "高血压 160/95",
+        relatedInfo: "血糖检测/血压检测/康复数据",
+        keyMetrics: "空腹血糖 7.0mmol/L",
       },
       {
         id: "R_2024_02",
-        date: "2024-03-15",
-        relatedInfo: "血糖检测/养老数据",
-        keyMetrics: "空腹血糖 6.8mmol/L",
+        date: "2024-02-2",
+        relatedInfo: "血糖检测/血压检测/康复数据",
+        keyMetrics: "空腹血糖 7.4mmol/L",
+      },
+      {
+        id: "R_2024_01",
+        date: "2024-01-5",
+        relatedInfo: "血糖检测/血压检测/康复数据",
+        keyMetrics: "空腹血糖 7.2mmol/L",
       },
     ];
 
@@ -241,7 +260,7 @@ const initGraph = () => {
   // 模擬數據
   const dates = ["2024-01", "2024-02", "2024-03", "2024-04", "2024-05"];
   const data = {
-    bloodSugar: [6.2, 5.8, 6.5, 5.9, 6.1],
+    bloodSugar: [7.2, 7.4, 7.0, 6.9, 6.8],
     bloodPressure: [130, 128, 135, 132, 129],
     weight: [65, 64, 63, 64, 63],
   };

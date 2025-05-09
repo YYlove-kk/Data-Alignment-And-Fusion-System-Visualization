@@ -1,53 +1,69 @@
 <template>
   <div class="home-page">
     <div class="main-content">
-      <h2>主要知识图谱展示</h2>
-      <div class="graph-visual">
+      <div class="content-header">
+        <h2>主要知识图谱展示</h2>
+        <div class="graph-switcher">
+          <el-select 
+            v-model="selectedGraph" 
+            placeholder="选择知识图谱"
+            size="default"
+            style="width: 150px"
+            @change="handleGraphChange"
+            :disabled="loading"
+          >
+            <el-option
+              v-for="graph in availableGraphs"
+              :key="graph.value"
+              :label="graph.label"
+              :value="graph.value"
+            />
+          </el-select>
+        </div>
+      </div>
+      <div class="graph-visual" v-loading="loading">
         <svg ref="graphContainer"></svg>
 
         <div class="legend-box">
-          <h4>关系与模态图例</h4>
-
+          <h4>节点与关系图例</h4>
+          <!-- 节点类型图例 -->
           <div class="legend-item">
-            <span class="color-swatch" style="background-color: red"></span>
-            患者-疾病(红色线)
+            <span class="shape-swatch" style="background-color: #ff6b6b"></span>
+            患者节点(Patient)
           </div>
           <div class="legend-item">
-            <span class="color-swatch" style="background-color: orange"></span>
-            疾病-影像(橙色线)
+            <span class="shape-swatch" style="background-color: #4ecdc4"></span>
+            文本节点(Text)
           </div>
           <div class="legend-item">
-            <span class="color-swatch" style="background-color: purple"></span>
-            患者-患者(同一对象)(紫色线)
+            <span class="shape-swatch" style="background-color: #45b7d1"></span>
+            图像节点(Image)
           </div>
           <div class="legend-item">
-            <span class="color-swatch" style="background-color: blue"></span>
-            康复关联(蓝色线)
+            <span class="shape-swatch" style="background-color: #95a5a6"></span>
+            机构节点(Institution)
+          </div>
+          
+          <!-- 关系类型图例 -->
+          <div class="legend-item">
+            <span class="color-swatch" style="background-color: #ff6b6b"></span>
+            文本相似度(TEXT_SIMILAR)
           </div>
           <div class="legend-item">
-            <span class="color-swatch" style="background-color: gray"></span>
-            医疗机构归属(灰色线)
-          </div>
-
-          <div class="legend-item">
-            <span class="shape-swatch diamond"></span>
-            患者数据节点(菱形)
+            <span class="color-swatch" style="background-color: #e88b00"></span>
+            图像相似度(IMAGE_SIMILAR)
           </div>
           <div class="legend-item">
-            <span class="shape-swatch square"></span>
-            表单数据节点(正方形)
+            <span class="color-swatch" style="background-color: #45b7d1"></span>
+            跨模态相似度(CROSS_MODAL_SIMILAR)
           </div>
           <div class="legend-item">
-            <span class="triangle"></span>
-            图像数据节点(三角形)
+            <span class="color-swatch" style="background-color: #cab6bd"></span>
+            关联到图像(RELATED_TO_IMAGE)
           </div>
           <div class="legend-item">
-            <span class="trapezoid"></span>
-            机构数据节点(梯形)
-          </div>
-          <div class="legend-item">
-            <span class="shape-swatch circle"></span>
-            属性数据节点(圆形)
+            <span class="color-swatch" style="background-color: #000000"></span>
+            归属于(BELONGS_TO)
           </div>
         </div>
       </div>
@@ -70,7 +86,7 @@
         </div>
         <div class="detail-item">
           <span class="label">详细信息：</span>
-          <span class="value">{{ selectedNode.detail }}</span>
+          <span class="value">{{ getNodeDetail(selectedNode) }}</span>
         </div>
 
         <div class="connections" v-if="selectedNode.connections.length">
@@ -99,17 +115,50 @@
 import { ref, onMounted } from "vue";
 import * as d3 from "d3";
 import { getHomePageData } from "@/api/homePage";
+import { ElMessage } from 'element-plus';
 
 const graphContainer = ref(null);
 const selectedNode = ref(null);
+const loading = ref(false);
+
+// 可用的知识图谱列表
+const availableGraphs = ref([
+  { value: 'graph1', label: '知识图谱 #1' },
+  { value: 'graph2', label: '知识图谱 #2' }
+]);
+
+// 选中的图谱
+const selectedGraph = ref('graph1');
+
+// 处理图谱切换
+const handleGraphChange = async (value) => {
+  loading.value = true;
+  try {
+    // 这里添加切换图谱的API调用
+    // const response = await fetch(`/api/graphs/${value}`);
+    // const data = await response.json();
+    
+    // 模拟切换
+    await new Promise(resolve => setTimeout(resolve, 500));
+    ElMessage.success(`已切换到${availableGraphs.value.find(g => g.value === value)?.label}`);
+    
+    // 重新初始化图谱
+    initGraph();
+  } catch (error) {
+    console.error('切换图谱失败:', error);
+    ElMessage.error('切换图谱失败');
+  } finally {
+    loading.value = false;
+  }
+};
 
 const getNodeTypeName = (type) => {
   const typeMap = {
-    diamond: "患者數據節點",
-    square: "表單數據節點",
-    triangle: "圖像數據節點",
-    trapezoid: "機構數據節點",
-    circle: "屬性數據節點",
+    diamond: "患者数据节点",
+    square: "表单数据节点",
+    triangle: "图像数据节点",
+    trapezoid: "机构数据节点",
+    circle: "属性数据节点",
   };
   return typeMap[type] || type;
 };
@@ -125,7 +174,19 @@ const getConnectionColor = (type) => {
   return colorMap[type] || type;
 };
 
+const getNodeDetail = (node) => {
+  if (!node.nodeDetail || Object.keys(node.nodeDetail).length === 0) return "無";
+  
+  const parts = [];
+  if (node.nodeDetail.textFile) parts.push(`文本名稱：${node.nodeDetail.textFile}`);
+  if (node.nodeDetail.imageFile) parts.push(`圖像名稱：${node.nodeDetail.imageFile}`);
+  return parts.join('，');
+};
+
 const initGraph = () => {
+  // 清除舊的 SVG 內容
+  d3.select(graphContainer.value).selectAll("*").remove();
+
   const width = graphContainer.value.clientWidth;
   const height = graphContainer.value.clientHeight;
 
@@ -169,65 +230,78 @@ const initGraph = () => {
 
   // 示例数据
   const graphData = {
-    nodes: [
-      {
-        id: 1,
-        name: "患者A",
-        group: 0,
-        size: 30,
-        detail: "基本信息",
-        shape: "diamond",
-      },
-      {
-        id: 2,
-        name: "糖尿病",
-        group: 1,
-        size: 15,
-        detail: "疾病信息",
-        shape: "square",
-      },
-      {
-        id: 3,
-        name: "CT影像",
-        group: 2,
-        size: 15,
-        detail: "影像数据",
-        shape: "triangle",
-      },
-      {
-        id: 4,
-        name: "医院A",
-        group: 3,
-        size: 12,
-        detail: "医疗机构",
-        shape: "trapezoid",
-      },
-      {
-        id: 5,
-        name: "年龄",
-        group: 4,
-        size: 12,
-        detail: "属性信息",
-        shape: "circle",
-      },
+    "nodes": [
+      { "id": "pacs01CT201702170412", "type": "Patient", "nodeDetail": {} },
+      { "id": "pacs01CT201702170413", "type": "Patient", "nodeDetail": {} },
+      { "id": "pacs01CT201702170415", "type": "Patient", "nodeDetail": {} },
+      { "id": "pacs01CT201702170416", "type": "Patient", "nodeDetail": {} },
+      { "id": "诊断记录表", "type": "Institution", "nodeDetail": {} },
+      { "id": "dcm影像记录", "type": "Institution", "nodeDetail": {} },
+      { "id": "pacs01CT201702170412_z_t", "type": "Text", "nodeDetail": { "textFile": "pacs01CT201702170412_z_t.npy", "imageFile": null } },
+      { "id": "pacs01CT201702170413_z_t", "type": "Text", "nodeDetail": { "textFile": "pacs01CT201702170413_z_t.npy", "imageFile": null } },
+      { "id": "pacs01CT201702170415_z_t", "type": "Text", "nodeDetail": { "textFile": "pacs01CT201702170415_z_t.npy", "imageFile": null } },
+      { "id": "pacs01CT201702170416_z_t", "type": "Text", "nodeDetail": { "textFile": "pacs01CT201702170416_z_t.npy", "imageFile": null } },
+      { "id": "pacs01CT201702170412_z_i", "type": "Image", "nodeDetail": { "textFile": null, "imageFile": "pacs01CT201702170412_z_i.npy" } },
+      { "id": "pacs01CT201702170413_z_i", "type": "Image", "nodeDetail": { "textFile": null, "imageFile": "pacs01CT201702170413_z_i.npy" } },
+      { "id": "pacs01CT201702170415_z_i", "type": "Image", "nodeDetail": { "textFile": null, "imageFile": "pacs01CT201702170415_z_i.npy" } },
+      { "id": "pacs01CT201702170416_z_i", "type": "Image", "nodeDetail": { "textFile": null, "imageFile": "pacs01CT201702170416_z_i.npy" } }
     ],
-    links: [
-      { source: 1, target: 2, type: "red" },
-      { source: 1, target: 3, type: "orange" },
-      { source: 1, target: 4, type: "gray" },
-      { source: 1, target: 5, type: "blue" },
-    ],
-  };
+    "edges": [
+      { "source": "pacs01CT201702170412_z_t", "target": "pacs01CT201702170413_z_t", "relations": [{ "relation": "TEXT_SIMILAR", "weight": 0.82 }] },
+      { "source": "pacs01CT201702170415_z_t", "target": "pacs01CT201702170416_z_t", "relations": [{ "relation": "TEXT_SIMILAR", "weight": 0.76 }] },
+      { "source": "pacs01CT201702170412_z_i", "target": "pacs01CT201702170413_z_i", "relations": [{ "relation": "IMAGE_SIMILAR", "weight": 0.79 }] },
+      { "source": "pacs01CT201702170415_z_i", "target": "pacs01CT201702170416_z_i", "relations": [{ "relation": "IMAGE_SIMILAR", "weight": 0.73 }] },
+      { "source": "pacs01CT201702170412_z_t", "target": "pacs01CT201702170412_z_i", "relations": [{ "relation": "RELATED_TO_IMAGE", "weight": null }] },
+      { "source": "pacs01CT201702170413_z_t", "target": "pacs01CT201702170413_z_i", "relations": [{ "relation": "RELATED_TO_IMAGE", "weight": null }] },
+      { "source": "pacs01CT201702170415_z_t", "target": "pacs01CT201702170415_z_i", "relations": [{ "relation": "RELATED_TO_IMAGE", "weight": null }] },
+      { "source": "pacs01CT201702170416_z_t", "target": "pacs01CT201702170416_z_i", "relations": [{ "relation": "RELATED_TO_IMAGE", "weight": null }] },
+      { "source": "pacs01CT201702170412_z_t", "target": "pacs01CT201702170412", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170412_z_i", "target": "pacs01CT201702170412", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170413_z_t", "target": "pacs01CT201702170413", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170413_z_i", "target": "pacs01CT201702170413", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170415_z_t", "target": "pacs01CT201702170415", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170415_z_i", "target": "pacs01CT201702170415", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170416_z_t", "target": "pacs01CT201702170416", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170416_z_i", "target": "pacs01CT201702170416", "relations": [{ "relation": "BELONGS_TO", "weight": null }] },
+      { "source": "pacs01CT201702170412_z_t", "target": "诊断记录表", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170413_z_t", "target": "诊断记录表", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170415_z_t", "target": "诊断记录表", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170416_z_t", "target": "诊断记录表", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170412_z_i", "target": "dcm影像记录", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170413_z_i", "target": "dcm影像记录", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170415_z_i", "target": "dcm影像记录", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170416_z_i", "target": "dcm影像记录", "relations": [{ "relation": "FROM", "weight": null }] },
+      { "source": "pacs01CT201702170412_z_t", "target": "pacs01CT201702170415_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.73 }] },
+      { "source": "pacs01CT201702170412_z_t", "target": "pacs01CT201702170416_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.75 }] },
+      { "source": "pacs01CT201702170413_z_t", "target": "pacs01CT201702170415_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.78 }] },
+      { "source": "pacs01CT201702170413_z_t", "target": "pacs01CT201702170416_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.76 }] },
+      { "source": "pacs01CT201702170415_z_t", "target": "pacs01CT201702170412_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.72 }] },
+      { "source": "pacs01CT201702170415_z_t", "target": "pacs01CT201702170413_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.74 }] },
+      { "source": "pacs01CT201702170416_z_t", "target": "pacs01CT201702170412_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.79 }] },
+      { "source": "pacs01CT201702170416_z_t", "target": "pacs01CT201702170413_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.77 }] },
+      { "source": "pacs01CT201702170416_z_t", "target": "pacs01CT201702170416_z_i", "relations": [{ "relation": "CROSS_MODAL_SIMILAR", "weight": 0.81 }] }
+    ]
+  }
 
   // 创建连线
   const link = container
     .append("g")
-    .attr("class", "links")
+    .attr("class", "edges")
     .selectAll("line")
-    .data(graphData.links)
+    .data(graphData.edges)
     .enter()
     .append("line")
-    .attr("stroke", (d) => d.type)
+    .attr("stroke", (d) => {
+      const relationType = d.relations[0].relation;
+      const colorMap = {
+        TEXT_SIMILAR: "#ff6b6b",
+        IMAGE_SIMILAR: "#e88b00",
+        CROSS_MODAL_SIMILAR: "#45b7d1",
+        RELATED_TO_IMAGE: "#cab6bd",
+        BELONGS_TO: "#000000"
+      };
+      return colorMap[relationType] || "#999";
+    })
     .attr("stroke-opacity", 0.5)
     .attr("stroke-width", 2);
 
@@ -249,75 +323,66 @@ const initGraph = () => {
     .on("click", (event, d) => {
       selectedNode.value = {
         id: d.id,
-        name:d.name,
-        detail: d.detail,
-        type: d.shape,
-        connections: graphData.links
+        name: d.id,
+        type: d.type,
+        nodeDetail: d.nodeDetail,
+        connections: graphData.edges
           .filter((link) => link.source.id === d.id || link.target.id === d.id)
           .map((link) => ({
             target: link.source.id === d.id ? link.target.id : link.source.id,
-            type: link.type,
+            type: link.relations[0].relation,
+            weight: link.relations[0].weight
           })),
       };
     });
 
-  // 根据节点类型创建不同形状
-  node.each(function (d) {
-    const g = d3.select(this);
-    switch (d.shape) {
-      case "diamond":
-        g.append("rect")
-          .attr("width", d.size)
-          .attr("height", d.size)
-          .attr("transform", "rotate(45)")
-          .attr("fill", "#fff")
-          .attr("stroke", "#000");
-        break;
-      case "square":
-        g.append("rect")
-          .attr("width", d.size)
-          .attr("height", d.size)
-          .attr("fill", "#fff")
-          .attr("stroke", "#000");
-        break;
-      case "triangle":
-        g.append("path")
-          .attr("d", `M0,${d.size} L${d.size},${d.size} L${d.size / 2},0 Z`)
-          .attr("fill", "#fff")
-          .attr("stroke", "#000");
-        break;
-      case "trapezoid":
-        g.append("path")
-          .attr(
-            "d",
-            `M0,${d.size} L${d.size / 4},0 L${(3 * d.size) / 4},0 L${d.size},${
-              d.size
-            } Z`
-          )
-          .attr("fill", "#fff")
-          .attr("stroke", "#000");
-        break;
-      case "circle":
-        g.append("circle")
-          .attr("r", d.size / 2)
-          .attr("fill", "#fff")
-          .attr("stroke", "#000");
-        break;
-    }
-  });
+  // 创建圆形节点
+  node.append("circle")
+    .attr("r", d => {
+      const sizeMap = {
+        Patient: 15,
+        Text: 12,
+        Image: 12
+      };
+      return sizeMap[d.type] || 10;
+    })
+    .attr("fill", d => {
+      const colorMap = {
+        Patient: "#ff6b6b",
+        Text: "#4ecdc4",
+        Image: "#45b7d1",
+        Institution: "#95a5a6"
+      };
+      return colorMap[d.type] || "#999";
+    })
+    .attr("stroke", "#000")
+    .attr("stroke-width", 1);
 
   // 创建文本
   const text = node.append('text')
-    .attr('font-size', d => d.size / 2 + 3)
+    .attr('font-size', d => {
+      const sizeMap = {
+        Patient: 10,
+        Text: 8,
+        Image: 8
+      };
+      return sizeMap[d.type] || 8;
+    })
     .attr('fill', '#000')
-    .attr('name', d => d.id)
     .text(d => d.id)
     .attr('text-anchor', 'middle')
-    .attr('dy', d => d.size + 5);
+    .attr('dy', d => {
+      const sizeMap = {
+        Patient: 25,
+        Text: 20,
+        Image: 20
+      };
+      return sizeMap[d.type] || 15;
+    });
 
   // 更新位置
   simulation.nodes(graphData.nodes).on("tick", ticked);
-  simulation.force("link").links(graphData.links);
+  simulation.force("link").links(graphData.edges);
 
   function ticked() {
     link
@@ -348,9 +413,7 @@ const initGraph = () => {
 };
 
 onMounted(() => {
-  // getHomePageData().then((res) => {
-  //   console.log(res);
-  // });
+  // 只初始化一次圖譜
   initGraph();
 });
 </script>
@@ -377,10 +440,22 @@ onMounted(() => {
   height: 100%;
   box-sizing: border-box;
 
-  h2 {
-    font-size: 1rem;
+  .content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 0.8rem;
-    color: #007bff;
+
+    h2 {
+      font-size: 1rem;
+      margin: 0;
+      color: #007bff;
+    }
+
+    .graph-switcher {
+      display: flex;
+      align-items: center;
+    }
   }
 }
 
@@ -441,7 +516,6 @@ onMounted(() => {
   height: 16px;
   display: inline-block;
   margin-right: 0.4rem;
-  border: 2px solid #000;
   margin-top: 2px;
 
   &.diamond {

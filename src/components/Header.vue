@@ -4,9 +4,9 @@
       <span class="system-title">多源医养康跨模态数据对齐融合系统</span>
     </div>
 
-    <div class="search-bar">
+    <!-- <div class="search-bar">
       <input type="text" placeholder="搜索(患者ID/疾病名称/机构名称)" />
-    </div>
+    </div> -->
 
     <div class="user-info">
       <nav>
@@ -50,6 +50,16 @@ const tabType = [
   { title: "数据上传", src: "dataUpload", name: "dataUpload" },
   { title: "数据对齐", src: "/dataAlignment", name: "dataAlignment" },
   {
+    title: "模型训练",
+    src: "/modelTraining",
+    name: "modelTraining",
+  },
+  {
+    title: "数据降维",
+    src: "/dimensionReduction",
+    name: "dimensionReduction",
+  },
+  {
     title: "多模态知识图谱构建与融合",
     src: "/multiModalKnowledgeGraph",
     name: "multiModalKnowledgeGraph",
@@ -59,7 +69,8 @@ const tabType = [
     src: "/patientDataAnalysis",
     name: "patientDataAnalysis",
   },
-  { title: "系统设置", src: "/systemSettings", name: "systemSettings" },
+
+  // { title: "系统设置", src: "/systemSettings", name: "systemSettings" },
 ];
 const menuSelect = (type) => {
   activeType.value = type;

@@ -6,7 +6,7 @@
       <div class="upload-header">
         <h2>数据上传</h2>
         <p>
-          支持上传文件类型：CSV、Excel、JSON、医养康影像等。请确保字段中包含患者标识、机构信息等必需项，以便后续数据对齐与融合。文件大小限制等可在系统设置中查看。
+          支持上传文件类型：CSV、Excel、医养康影像等。请确保字段中包含患者标识、机构信息等必需项，以便后续数据对齐与融合，单次仅允许上传一个文件。
         </p>
       </div>
 
@@ -68,8 +68,8 @@
             </div>
             <template #tip>
               <div class="el-upload__tip">
-                支持的文件类型：CSV、Excel、JSON、医养康影像等，单个文件大小不超过
-                500MB
+                支持的文件类型：CSV、Excel、医养康影像等，单个文件大小不超过
+                500MB，单次仅允许上传一个文件。
               </div>
             </template>
           </el-upload>
@@ -100,32 +100,18 @@
             max-height="410"
             border
           >
-            <el-table-column prop="name" label="数据源名称" width="180" />
+            <el-table-column prop="name" label="数据源名称"/>
             <el-table-column prop="type" label="模态类型" width="120" />
             <el-table-column prop="uploadTime" label="上传时间" width="180" />
             <el-table-column prop="status" label="状态" width="120" />
-            <el-table-column label="操作" width="400">
+            <el-table-column label="操作" width="200">
               <template #default="scope">
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="handleView(scope.row)"
-                >
-                  查看
-                </el-button>
                 <el-button
                   type="danger"
                   size="small"
                   @click="handleDelete(scope.row)"
                 >
                   刪除
-                </el-button>
-                <el-button
-                  type="warning"
-                  size="small"
-                  @click="handleReupload(scope.row)"
-                >
-                  重新上传
                 </el-button>
                 <el-button
                   type="success"
@@ -147,6 +133,7 @@
 import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { UploadFilled } from "@element-plus/icons-vue";
+import { uploadData,getDataUploadList,deleteData } from "@/api/dataUpload";
 
 // 上傳 URL
 const uploadUrl =
@@ -155,7 +142,7 @@ const uploadUrl =
 // 表單數據
 const formData = ref({
   dataSourceName: "",
-  modalType: "text",
+  modalType: 1,
   orgName: "",
 });
 
@@ -168,19 +155,19 @@ const uploadProgress = ref(0);
 // 已上傳文件列表
 const uploadedFiles = ref([
   {
-    name: "廣醫醫院2023-Q4文本",
+    id:1,
+    name: "（三级医院）广东省人民医院检查信息",
     type: "文本",
-    uploadTime: "2025-08-10 15:30",
+    uploadTime: "2025-05-05 15:30",
     status: "成功",
   },
 ]);
 
 // 模态类型选项
 const modalTypeOptions = [
-  { value: "text", label: "文本" },
-  { value: "image", label: "图像" },
-  { value: "timeSeries", label: "时序" },
-  { value: "other", label: "其他" },
+  { value: 1, label: "文本" },
+  { value: 2, label: "图像" },
+  { value: 3, label: "时序" },
 ];
 
 // 計算屬性：是否可以上傳
@@ -235,7 +222,7 @@ const handleUploadError = (error) => {
 };
 
 // 提交上傳
-const submitUpload = () => {
+const submitUpload = async() => {
   if (!canUpload.value) {
     ElMessage.warning("請填寫所有必填項並選擇文件");
     return;
@@ -244,13 +231,6 @@ const submitUpload = () => {
   uploadProgress.value = 0;
   console.log("11", fileList.value);
   // 模擬上傳進度
-  const interval = setInterval(() => {
-    if (uploadProgress.value < 100) {
-      uploadProgress.value += 10;
-    } else {
-      clearInterval(interval);
-    }
-  }, 200);
 
   const file = fileList.value[0];
   const params = {
@@ -259,7 +239,15 @@ const submitUpload = () => {
     orgName: formData.value.orgName,
     file: file,
   };
-  console.log("11", params);
+  
+   const res = await uploadData(params)
+   if(res.code === 200){
+    ElMessage.success("文件上传成功");
+    resetForm();
+    getDataUploadList();
+   }else{
+    ElMessage.error("文件上传失败");
+   }
 };
 
 // 處理取消
@@ -278,23 +266,19 @@ const resetForm = () => {
   uploadProgress.value = 0;
 };
 
-// 處理查看
-const handleView = (item) => {
-  console.log("查看文件:", item);
-};
 
 // 處理刪除
-const handleDelete = (item) => {
+const handleDelete = async(item) => {
   const index = uploadedFiles.value.indexOf(item);
   if (index > -1) {
-    uploadedFiles.value.splice(index, 1);
-    ElMessage.success("刪除成功");
+    const res = await deleteData({id:item.id})
+    if(res.code === 200){
+      uploadedFiles.value.splice(index, 1);
+      ElMessage.success("刪除成功");
+    }else{
+      ElMessage.error("刪除失败");
+    }
   }
-};
-
-// 處理重新上傳
-const handleReupload = (item) => {
-  console.log("重新上傳:", item);
 };
 
 // 處理數據對齊
@@ -304,8 +288,6 @@ const handleAlign = (item) => {
 
 // 处理文件移除
 const handleRemove = (file, fileList) => {
-  console.log("移除文件:", file);
-  console.log("剩余文件列表:", fileList);
 };
 </script>
 
